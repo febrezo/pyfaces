@@ -19,6 +19,7 @@
 
 import base64
 import concurrent.futures
+import datetime as dt
 import hashlib
 import json
 import os
@@ -37,12 +38,13 @@ class FaceProcessor:
 
     Attributes:
         config (ConfigManager): The configuration manager object.
-        encodings (dict): The encodings file as a dict. The key is the file name.
         comparisons (dict): The comparisons file as a dict. The key is the file name.
+        encodings (dict): The encodings file as a dict. The key is the file name.
+        metadata (dict): The metadata file as a dict. The key is the file name.
     """
     def __init__(self):
         self.config = ConfigManager()
-        
+
         # Load previous configurations
         try:
             with open(str(self.config.comparisons_file), "r") as input_file:
@@ -51,7 +53,7 @@ class FaceProcessor:
             with open(self.config.comparisons_file, "w") as output_file:
                 json.dump({}, output_file)
                 self.comparisons = {}
-        
+
         try:
             with open(self.config.encodings_file, "r") as input_file:
                 self.encodings = json.load(input_file)
@@ -59,6 +61,14 @@ class FaceProcessor:
             with open(self.config.encodings_file, "w") as output_file:
                 json.dump({}, output_file)
                 self.encodings = {}
+
+        try:
+            with open(self.config.metadata_file, "r") as input_file:
+                self.metadata = json.load(input_file)
+        except FileNotFoundError:
+            with open(self.config.metadata_file, "w") as output_file:
+                json.dump({}, output_file)
+                self.metadata = {}
 
     def compare_faces(self, face_path_1, face_path_2, force_recalculation=False):
         """Compare two existing faces
@@ -130,16 +140,16 @@ class FaceProcessor:
         try:
             with open(self.config.encodings_file, "r") as input_file:
                 self.encodings = json.load(input_file)
-            
+
             faces_in_image = []
             copy_encodings = dict(self.encodings)
             for (key, value) in copy_encodings.items() :
                 if value["original_file"] == image_path:
                     faces_in_image.append(key)
                     del self.encodings[key]
-            
+
             with open(self.config.encodings_file, "w") as output_file:
-                json.dump(self.encodings, output_file)            
+                json.dump(self.encodings, output_file)
         except FileNotFoundError:
             with open(self.config.encodings_file, "w") as output_file:
                 json.dump({}, output_file)
@@ -147,7 +157,7 @@ class FaceProcessor:
         try:
             with open(self.config.comparisons_file, "r") as input_file:
                 self.comparisons = json.load(input_file)
-            
+
             copy_comparisons = dict(self.comparisons)
             for (key, value) in copy_comparisons.items() :
                 for face in faces_in_image:
@@ -155,7 +165,7 @@ class FaceProcessor:
                         del self.comparisons[key]
                     else:
                         self.comparisons[key].pop(face, None)
-            
+
             with open(self.config.comparisons_file, "w") as output_file:
                 json.dump(self.comparisons, output_file)
         except FileNotFoundError:
@@ -178,37 +188,41 @@ class FaceProcessor:
         """
         image_array = face_recognition.load_image_file(image_path)
         image = Image.fromarray(image_array)
+        source_md5 = hashlib.md5(image.tobytes()).hexdigest()
         full_image_path = os.path.join(
             self.config.sources_folder,
-            hashlib.md5(image.tobytes()).hexdigest() + ".bmp"
+            f"{source_md5}.bmp"
         )
 
         # If the original image is found, it's assumed that the analysis has been performed
-        if os.path.exists(full_image_path) and not force_recalculation:
-            results = []
-            for face in self.encodings.keys():
-                if self.encodings[face]["copied_file"] == full_image_path:
-                    results.append(face)
-            return results
+        if full_image_path in self.metadata.keys() and not force_recalculation:
+            return self.metadata[full_image_path]
+
+        self.metadata[full_image_path] = {
+            "copied_md5": source_md5,
+            "copied_path": full_image_path,
+            "extraction_date": str(dt.datetime.now()),
+            "faces": [],
+            "original_path": image_path
+        }
 
         # Extract faces
         max_width, max_height = image.size
         face_locations = face_recognition.face_locations(image_array)
 
-        new_faces_paths = []
-
         for i, f in enumerate(face_locations):
             # Cutting out the face
             top, right, bottom, left = f
             face_image_array = image_array[
-                max(top-40, 0):min(bottom+20, max_height),
-                max(left-15, 0):min(right+15, max_width)
+                max(top-20, 0):min(bottom+20, max_height),
+                max(left-20, 0):min(right+20, max_width)
             ]
             pil_image = Image.fromarray(face_image_array)
 
+            face_md5 = hashlib.md5(pil_image.tobytes()).hexdigest()
             full_face_path = os.path.join(
                 self.config.faces_folder,
-                hashlib.md5(pil_image.tobytes()).hexdigest() + ".bmp"
+                f"{face_md5}.bmp"
             )
 
             pil_image.save(full_face_path)
@@ -221,33 +235,35 @@ class FaceProcessor:
             l = []
             for a in known_encodings:
                 l.append(a.tolist())
-            
+
             if l != []:
-                aux_encoding = {
-                    full_face_path: {
-                        "original_file": image_path,
-                        "copied_file": full_image_path,
-                        "encodings": l
-                    }
+                self.encodings[full_face_path] = {
+                    "container_file": full_image_path,
+                    "copied_md5": face_md5,
+                    "copied_path": full_face_path,
+                    "position": {
+                        "top": max(top-20, 0),
+                        "bottom": min(bottom+20, max_height),
+                        "left": max(left-20, 0),
+                        "right": min(right+20, max_width),
+                    },
+                    "encodings": l
                 }
 
-                try:
-                    with open(self.config.encodings_file, "r") as input_file:
-                        self.encodings = json.load(input_file)
-                    self.encodings.update(aux_encoding)
-                    with open(self.config.encodings_file, "w") as output_file:
-                        json.dump(self.encodings, output_file)
-                except (FileNotFoundError, json.decoder.JSONDecodeError, TypeError):
-                    with open(self.config.encodings_file, "w") as output_file:
-                        json.dump(aux_encoding, output_file)
-
-                new_faces_paths.append(full_face_path)
+                self.metadata[full_image_path]["faces"].append(full_face_path)
             else:
                 pathlib.Path(full_face_path).unlink()
-            
+
         # Save the source image
         image.save(full_image_path)
-        return new_faces_paths
+
+        with open(self.config.encodings_file, "w") as output_file:
+            json.dump(self.encodings, output_file)
+
+        with open(self.config.metadata_file, "w") as output_file:
+            json.dump(self.metadata, output_file)
+
+        return self.metadata[full_image_path]
 
     def get_face(self, face_path):
         """Get the details of a face
@@ -289,6 +305,24 @@ class FaceProcessor:
         except KeyError:
             raise Exception(f"No encodings found for: '{face_path}'")
 
+    def get_metadata(self, image_path):
+        """Get the metadata of a source image
+
+        Args:
+            image_path (str): The image path which will be used as a key.
+
+        Returns:
+            dict. A dictionary containing the metadata information.
+
+        Raises:
+            Exception.
+            FileNotFoundException.
+        """
+        try:
+            return self.metadata["image_path"]
+        except KeyError:
+            raise Exception(f"No metadata found for: '{image_path}'")
+
     def guess_face(self, new_face_path, force_recalculation=False):
         """Find the most appropiate match.
 
@@ -306,7 +340,7 @@ class FaceProcessor:
                     …
                 ]
             }
-            
+
         Raises:
             Exception.
             ValueError.
@@ -316,15 +350,15 @@ class FaceProcessor:
             raise ValueError(f"Image '{new_face_path}' is not a registered face. Try extracting faces first.")
 
         task = {
-            "total_comparisons": len(self.encodings)-1,
-            "results": []
+            "counter": len(self.encodings)-1,
+            "comparisons": []
         }
 
         # Check previous comparisons
         with concurrent.futures.ThreadPoolExecutor(max_workers=int(self.config.get_attribute("num_threads"))) as executor:
             all_futures = {}
             for known_face in sorted(self.encodings):
-                if new_face_path != known_face: 
+                if new_face_path != known_face:
                     all_futures[
                         executor.submit(
                             self.compare_faces,
@@ -337,7 +371,7 @@ class FaceProcessor:
             for future in concurrent.futures.as_completed(all_futures):
                 comparison = all_futures[future]
                 try:
-                    task["results"].append(
+                    task["comparisons"].append(
                         {
                             "known_face": comparison,
                             "similarity": future.result()
@@ -346,5 +380,5 @@ class FaceProcessor:
                 except Exception as exc:
                     print(warning(f'{comparison} generated an exception: {exc}'))
 
-        task["results"] = sorted(task["results"], key=lambda k: k["similarity"])
+        task["comparisons"] = sorted(task["comparisons"], key=lambda k: k["similarity"])
         return task

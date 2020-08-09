@@ -106,6 +106,17 @@ def get_image(image_path):
     proc = FaceProcessor()
     return proc.get_image(image_path)
 
+@dispatcher.add_method
+def get_metadata(image_path):
+    """Get the metadata from a source image
+
+    Warning! This could be used to gab other files! Watch out!
+
+    Args:
+        image_path (str): The path to the image which is used as a key.
+    """
+    proc = FaceProcessor()
+    return proc.get_metadata(image_path)
 
 @dispatcher.add_method
 def guess_face(face_path):
@@ -128,6 +139,7 @@ def info():
             "extract_faces",
             "get_face",
             "get_image",
+            "get_metadata",
             "guess_face",
             "info",
             "set_config"

@@ -34,6 +34,7 @@ class ConfigManager:
         {static} config_file (str): The path to the file where the configuration will be stored.
         {static} encodings_file (str): The path to the file where the encodings will be stored.
         {static} faces_folder (str): The path to the folder where the faces images will be stored.
+        {static} metadata_file (str): The path to the file where the metadata will be stored.
         {static} sources_folder (str): The path to the folder where the original images will be stored.
     """
     app_folder = None
@@ -42,6 +43,7 @@ class ConfigManager:
     config_file = None
     encodings_file = None
     faces_folder = None
+    metadata_file = None
     sources_folder = None
     
     def __init__(self):
@@ -77,6 +79,7 @@ class ConfigManager:
         self.sources_folder = os.path.join(self.get_attribute("data_folder"), "sources")
         self.encodings_file = os.path.join(self.get_attribute("data_folder"), "encodings.json")
         self.comparisons_file = os.path.join(self.get_attribute("data_folder"), "comparisons.json")
+        self.metadata_file = os.path.join(self.get_attribute("data_folder"), "metadata.json")
 
         #Check that folders are created
         Path(self.faces_folder).mkdir(parents=True, exist_ok=True)
