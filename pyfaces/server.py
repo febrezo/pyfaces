@@ -47,12 +47,12 @@ def compare_faces(face_path_1, face_path_2):
 @dispatcher.add_method
 def config():
     """Return configuration"""
-    return ConfigManager().get() 
+    return ConfigManager().get()
 
 
 @dispatcher.add_method
 def set_config(name, value):
-    """Set a configuration attribute 
+    """Set a configuration attribute
     """
     config = ConfigManager()
     config.set(name, value)
@@ -61,8 +61,8 @@ def set_config(name, value):
 
 @dispatcher.add_method
 def extract_faces(image_path):
-    """Extract faces from an image 
-    
+    """Extract faces from an image
+
     Args:
         image_path (str): The path to the image which will be searched for images.
     """
@@ -73,20 +73,20 @@ def extract_faces(image_path):
 @dispatcher.add_method
 def delete_analysis(image_path):
     """The analysis to remove
-    
+
     Args:
         image_path (str): The path to the source image to delete.
     """
     proc = FaceProcessor()
     return proc.delete_path(image_path)
-    
+
 
 @dispatcher.add_method
 def get_face(face_path):
-    """Get the face configuration 
-    
+    """Get the face configuration
+
     Warning! This could be used to gab other files! Watch out!
-    
+
     Args:
         face_path (str): The path to the face which is used as a key.
     """
@@ -96,10 +96,10 @@ def get_face(face_path):
 
 @dispatcher.add_method
 def get_image(image_path):
-    """Get the base64 image 
-    
+    """Get the base64 image
+
     Security Warning! This could be used to gab other files! Watch out!
-    
+
     Args:
         image_path (str): The image path to the file to be grabbed.
     """
@@ -151,7 +151,7 @@ def get_parser():
         argparse.ArgumentParser.
     """
     config = ConfigManager()
-    
+
     parser = argparse.ArgumentParser(
         description= 'Pyfaces JSON-RPC Server | A face recognition tool to make it accesible for everyone and learn from it to what extent we are exposed.',
         prog='pyfacesd',
@@ -177,22 +177,22 @@ def main(params=None):
     """
     Args:
         params: A list with the parameters as grabbed by the terminal. It is
-            None when this is called by an entry_point. 
+            None when this is called by an entry_point.
     Returns:
         dict: A Json representing the matching results.
     """
     print(text.welcome)
-    
+
     if params is None:
         parser = get_parser()
         args = parser.parse_args(params)
     else:
         args = params
-        
+
     try:
         run_simple(
-            args.host, 
-            args.port, 
+            args.host,
+            args.port,
             application
         )
     except KeyboardInterrupt:

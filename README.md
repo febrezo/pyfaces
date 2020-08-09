@@ -177,5 +177,3 @@ $ curl -X POST \
   "jsonrpc": "2.0"
 }
 ```
-
-

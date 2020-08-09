@@ -88,7 +88,9 @@ class ConfigManager:
         Returns:
             dict.
         """
-        return dict(self.config._sections())
+        result = self.__dict__
+        result["config"] = dict(self.config._sections)
+        return result
         
     def get_attribute(self, name):
         """Get the value of an attribute in the configuration
