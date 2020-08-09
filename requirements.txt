@@ -1,0 +1,5 @@
+werkzeug
+json-rpc
+colorama
+numpy
+face_recognition

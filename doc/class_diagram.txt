@@ -1,0 +1,91 @@
+@startuml
+'skinparam classAttributeIconSize 0
+
+package pyfaces.core {
+    class "processor.FaceProcessor" as FaceProcessor {
+        Processor class to run comparison tasks
+        --
+        +comparisons
+        +config
+        +encodings
+        +compare_faces()
+        +delete_analysis()
+        +extract_faces()
+        +get_face()
+        +get_image()
+        +guess_face()
+    }
+    
+    class "configuration.ConfigManager" as  ConfigManager {
+        Manages the configuration file access.\nBy default stored in the configuration folder.
+        --
+        {static} -app_folder
+        {static} -config_file
+        {static} -config
+        {static} +faces_folder
+        {static} +sources_folder
+        {static} +encodings_file
+        {static} +comparisons_file
+        {static} -initialize_configuration()
+        {static} -_update_paths()
+        {static} +get_attribute()
+        {static} +set_attribute()
+    }
+}
+
+package concurrent.futures {
+    class ThreadPoolExecutor {
+        Used for concurrency work.
+        --
+        +max_workers
+        +submit()
+    }
+    
+    class Future {
+        Used to grab the result of the 
+        execution.
+        --
+        +result()
+    }
+}
+
+package configparser {
+    class ConfigParser {
+        the .ini configuration manager
+        --
+        +_sections()
+        +get()
+        +read()
+        +set()
+        +write()
+    }
+}
+
+package PIL {
+    class Image {
+        The image object returned from extractions.
+        --
+        +size
+        +fromarray()
+        +save()
+        +toBytes()
+    }
+}
+
+
+package pathlib {
+    class Path {
+        The object used to create folders.
+        --
+        +mkdir()
+    }
+}
+
+ConfigParser <-- ConfigManager : uses
+Path <-- ConfigManager : uses
+ConfigManager <-- FaceProcessor : uses
+ThreadPoolExecutor <-- FaceProcessor : uses
+Future <-- FaceProcessor : uses
+Image <-- FaceProcessor : uses
+@enduml
+
