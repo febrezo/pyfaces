@@ -210,6 +210,9 @@ def main(params=None):
     except KeyboardInterrupt:
         print()
         print("Manually stopped by the user.")
+    except OSError as e:
+        print()
+        print(f"Something happened: '{e}'.")
 
 
 if __name__ == '__main__':

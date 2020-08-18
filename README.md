@@ -1,5 +1,5 @@
-pyfaces
-========
+Pyfaces
+=======
 
 Copyright (C) 2020  F. Brezo ([@febrezo](https://twitter.com/febrezo))
 

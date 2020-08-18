@@ -93,34 +93,37 @@ class FaceProcessor:
         # Calculate distances
         new_numpy = np.array(self.encodings[face_path_2]["encodings"])
 
-        distance = float(
-            face_recognition.face_distance(
-                self.encodings[face_path_1]["encodings"],    # It SHOULD BE a list of lists
-                new_numpy                               # It SHOULD BE a numpy.array
+        try:    
+            distance = float(
+                face_recognition.face_distance(
+                    self.encodings[face_path_1]["encodings"],       # It SHOULD BE a list of lists
+                    new_numpy                                       # It SHOULD BE a numpy.array
+                )
             )
-        )
 
-        # Persisting distance
-        with open(self.config.comparisons_file, "r") as input_file:
-            self.comparisons = json.load(input_file)
+            # Persisting distance
+            with open(self.config.comparisons_file, "r") as input_file:
+                self.comparisons = json.load(input_file)
 
-        if face_path_1 not in self.comparisons.keys():
-            self.comparisons[face_path_1] = {}
-        self.comparisons[face_path_1].update(
-            {
-                face_path_2: distance
-            }
-        )
-        if face_path_2 not in self.comparisons.keys():
-            self.comparisons[face_path_2] = {}
-        self.comparisons[face_path_2].update(
-            {
-                face_path_1: distance
-            }
-        )
+            if face_path_1 not in self.comparisons.keys():
+                self.comparisons[face_path_1] = {}
+            self.comparisons[face_path_1].update(
+                {
+                    face_path_2: distance
+                }
+            )
+            if face_path_2 not in self.comparisons.keys():
+                self.comparisons[face_path_2] = {}
+            self.comparisons[face_path_2].update(
+                {
+                    face_path_1: distance
+                }
+            )
 
-        with open(self.config.comparisons_file, "w") as output_file:
-            json.dump(self.comparisons, output_file)
+            with open(self.config.comparisons_file, "w") as output_file:
+                json.dump(self.comparisons, output_file)
+        except TypeError:
+            return 1 
 
         return distance
 
@@ -238,9 +241,10 @@ class FaceProcessor:
 
             if l != []:
                 self.encodings[full_face_path] = {
-                    "container_file": full_image_path,
                     "copied_md5": face_md5,
-                    "copied_path": full_face_path,
+                    "copied_original_file": full_image_path,
+                    "face_path": full_face_path,
+                    "original_image_path": image_path,
                     "position": {
                         "top": max(top-20, 0),
                         "bottom": min(bottom+20, max_height),
@@ -279,7 +283,7 @@ class FaceProcessor:
             FileNotFoundException.
         """
         try:
-            return self.encodings["face_path"]
+            return self.encodings[face_path]
         except KeyError:
             raise Exception(f"No encodings found for: '{face_path}'")
 
@@ -349,36 +353,28 @@ class FaceProcessor:
         if new_face_path not in self.encodings.keys():
             raise ValueError(f"Image '{new_face_path}' is not a registered face. Try extracting faces first.")
 
+
         task = {
             "counter": len(self.encodings)-1,
             "comparisons": []
         }
 
-        # Check previous comparisons
-        with concurrent.futures.ThreadPoolExecutor(max_workers=int(self.config.get_attribute("num_threads"))) as executor:
-            all_futures = {}
-            for known_face in sorted(self.encodings):
-                if new_face_path != known_face:
-                    all_futures[
-                        executor.submit(
-                            self.compare_faces,
-                            new_face_path,
-                            known_face,
-                            force_recalculation
-                        )
-                    ] = known_face
-
-            for future in concurrent.futures.as_completed(all_futures):
-                comparison = all_futures[future]
+        for known_face in sorted(self.encodings):
+            if known_face != new_face_path:
+                similarity = self.compare_faces (
+                    new_face_path,
+                    known_face,
+                    force_recalculation
+                )
                 try:
                     task["comparisons"].append(
                         {
-                            "known_face": comparison,
-                            "similarity": future.result()
+                            "known_face": known_face,
+                            "similarity": similarity
                         }
                     )
                 except Exception as exc:
-                    print(warning(f'{comparison} generated an exception: {exc}'))
+                    print(warning(f'{known_face} generated an exception: {exc}'))
 
         task["comparisons"] = sorted(task["comparisons"], key=lambda k: k["similarity"])
         return task
