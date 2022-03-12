@@ -1,6 +1,6 @@
 ################################################################################
 #
-#    Copyright 2020 @ Félix Brezo (@febrezo)
+#    Copyright 2020-2022 @ Félix Brezo (@febrezo)
 #
 #    This program is part of Pyfaces. You can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as published by
@@ -18,6 +18,10 @@
 ################################################################################
 
 import argparse
+import logging
+import threading
+import time
+import os 
 from jsonrpc import JSONRPCResponseManager, dispatcher
 
 from werkzeug.wrappers import Request, Response
@@ -29,9 +33,18 @@ from pyfaces.core.processor import FaceProcessor
 from pyfaces.core.configuration import ConfigManager
 
 
+def kill_daemon_job():
+    """The function to be called that kills the daemon
+    """
+    logging.info(f"Waiting 3 seconds for cleanup before the shutdown…")
+    time.sleep(3)
+    logging.info(f"Shutting down the whole application…")
+    os._exit(0)
+
+
 @dispatcher.add_method
 def compare_faces(face_path_1, face_path_2):
-    """Compare two faces
+    """Compare two faces located in a given path
 
     Args:
         face_path_1 (str): The path to the image of the first face.
@@ -47,16 +60,26 @@ def compare_faces(face_path_1, face_path_2):
 @dispatcher.add_method
 def config():
     """Return configuration"""
+    logging.debug("Getting configuration…")
     return ConfigManager().get()
 
 
 @dispatcher.add_method
 def set_config(name, value):
     """Set a configuration attribute
+
+    Args:
+        name (str): The name of the configuration option.
+        value (str): The value to set.
+    
+    Return:
+        str.
     """
     config = ConfigManager()
     config.set(name, value)
-    return "Configuration 'name' changed to 'value'."
+    msg = f"Configuration option '{name}' changed to '{value}'."
+    logging.debug(msg)
+    return msg
 
 
 @dispatcher.add_method
@@ -66,6 +89,7 @@ def extract_faces(image_path):
     Args:
         image_path (str): The path to the image which will be searched for images.
     """
+    logging.debug(f"Extracting faces from '{image_path}'…")
     proc = FaceProcessor()
     return proc.extract_faces(image_path)
 
@@ -77,6 +101,7 @@ def delete_analysis(image_path):
     Args:
         image_path (str): The path to the source image to delete.
     """
+    logging.debug(f"Deleting analysis linked to '{image_path}'…")
     proc = FaceProcessor()
     return proc.delete_path(image_path)
 
@@ -85,11 +110,15 @@ def delete_analysis(image_path):
 def get_face(face_path):
     """Get the face configuration
 
-    Warning! This could be used to gab other files! Watch out!
+    Warning! This could be used to grab other files! Watch out!
 
     Args:
         face_path (str): The path to the face which is used as a key.
+
+    Returns:
+        str. Base64 representation of the face.
     """
+    logging.debug(f"Grabbing face from '{face_path}'…")
     proc = FaceProcessor()
     return proc.get_face(face_path)
 
@@ -98,11 +127,15 @@ def get_face(face_path):
 def get_image(image_path):
     """Get the base64 image
 
-    Security Warning! This could be used to gab other files! Watch out!
+    Security Warning! This could be used to grab other files! Watch out!
 
     Args:
         image_path (str): The image path to the file to be grabbed.
+
+    Returns:
+        str. Base64 representation of the image.
     """
+    logging.debug(f"Grabbing image from '{face_path}'…")
     proc = FaceProcessor()
     return proc.get_image(image_path)
 
@@ -110,11 +143,12 @@ def get_image(image_path):
 def get_metadata(image_path):
     """Get the metadata from a source image
 
-    Warning! This could be used to gab other files! Watch out!
+    Warning! This could be used to grab other files! Watch out!
 
     Args:
         image_path (str): The path to the image which is used as a key.
     """
+    logging.debug(f"Grabbing metadata from '{image_path}'…")
     proc = FaceProcessor()
     return proc.get_metadata(image_path)
 
@@ -129,7 +163,11 @@ def guess_face(face_path):
 @dispatcher.add_method
 def info():
     """Get server information
+
+    Returns:
+        dict.
     """
+    logging.debug(f"Grabbing information from the server…")
     proc = FaceProcessor()
     return {
         "name": f"Pyfaces {pyfaces.__version__} JSON-RPC Server",
@@ -142,10 +180,21 @@ def info():
             "get_metadata",
             "guess_face",
             "info",
-            "set_config"
+            "set_config",
+            "shutdown"
         ],
         "faces": len(proc.encodings)
     }
+
+@dispatcher.add_method
+def shutdown():
+    """Shut down the server
+
+    Used as a guidance this answer from Stackoverflow:
+        https://stackoverflow.com/questions/1489669/how-to-exit-the-entire-application-from-a-python-thread/25419716#25419716
+    """
+    threading.Thread(target=kill_daemon_job).start() 
+    return "Daemon shutdown order received."
 
 
 @Request.application
@@ -176,6 +225,7 @@ def get_parser():
     group_server.add_argument('-h', '--host', metavar='<HOST>', required=False, default="localhost", action='store', help="the host where it will be launched. Note that '0.0.0.0' will make it accesible from outside and this can be dangerous. Default value: localhost.")
     group_server.add_argument('-p', '--port', metavar='<PORT>', required=False, default=12012, action='store', help='select the port in which the JSON RPC server will be deployed. Default value: 12012.')
     group_server.add_argument('-t', '--threads', metavar='<NUM>', required=False, default=config.get_attribute("num_threads"), action='store', help=f"select the number of threads to be used. Default value: {config.get_attribute('num_threads')}")
+    group_server.add_argument('-l', '--log-level', metavar='<LOG_LEVEL>', required=False, default="INFO", action='store', choices=["DEBUG", "INFO", "WARNING", "ERROR"], help=f"the log level for the application. Default value: 'INFO'.")
 
     # About options
     group_about = parser.add_argument_group('About arguments', 'Showing additional information about this program.')
@@ -201,18 +251,21 @@ def main(params=None):
     else:
         args = params
 
+    logging.basicConfig(format='[%(levelname)s] Pyfaces:  %(message)s', level="DEBUG")
+
     try:
         run_simple(
             args.host,
             args.port,
-            application
+            application,
+            threaded=True
         )
     except KeyboardInterrupt:
-        print()
-        print("Manually stopped by the user.")
+        loggin.info("Manually stopped by the user.")
     except OSError as e:
-        print()
-        print(f"Something happened: '{e}'.")
+        logging.error(f"Something happened: '{e}'.")
+    finally:
+        logging.info("Safely closing the daemon…")
 
 
 if __name__ == '__main__':

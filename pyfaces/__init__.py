@@ -1,6 +1,6 @@
 ################################################################################
 #
-#    Copyright 2020 @ Félix Brezo (@febrezo)
+#    Copyright 2020-2022 @ Félix Brezo (@febrezo)
 #
 #    This program is part of Pyfaces. You can redistribute it and/or modify
 #    it under the terms of the GNU Affero General Public License as published by
@@ -17,4 +17,4 @@
 #
 ################################################################################
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
