@@ -1,0 +1,16 @@
+version: '3.5'
+
+services:
+  pyfaces:
+    build: .
+    image: pyfaces
+    container_name: "pyfaces_container"
+    command: bash -c "pyfacesd"
+    ports:
+      - "12012:12012"
+    volumes:
+      - pyfaces_data:/root/.config/Pyfaces
+
+volumes:
+  pyfaces_data:
+    driver: local
